@@ -42,13 +42,22 @@ jobs:
             extra_cflags: -Qunused-arguments
 
     steps:
-      - name: Install toolchain
+      - name: Install base tools
+        run: dnf -y install dnf5-plugins git-core python3 ninja-build make diffutils msitools
+
+      - name: Enable Copr
+        if: matrix.copr
+        run: dnf -y copr enable ${{ matrix.copr }}
+
+      - name: Install cross toolchain
+        run: dnf -y install ${{ matrix.packages }}
+
+      - name: Toolchain sanity
         run: |
-          dnf -y install dnf5-plugins git-core python3 ninja-build make diffutils msitools
-          if [ -n "${{ matrix.copr }}" ]; then
-            dnf -y copr enable ${{ matrix.copr }}
-          fi
-          dnf -y install ${{ matrix.packages }}
+          rpm -q ${{ matrix.packages }}
+          command -v ${{ matrix.prefix }}cc || command -v ${{ matrix.prefix }}gcc
+          (${{ matrix.prefix }}gcc --version || ${{ matrix.prefix }}cc --version) | head -1
+          ${{ matrix.prefix }}pkg-config --modversion glib-2.0
 
       - name: Checkout ${{ inputs.ref }}
         uses: actions/checkout@v4
@@ -58,8 +67,11 @@ jobs:
       - name: Build MSI
         run: |
           git config --global --add safe.directory "$PWD"
+          if [ -n "${{ matrix.windmc }}" ]; then
+            export WINDMC="${{ matrix.windmc }}"
+          fi
           mkdir build && cd build
-          WINDMC="${{ matrix.windmc }}" ../configure \
+          ../configure \
             --cross-prefix=${{ matrix.prefix }} \
             --disable-system --disable-user --disable-tools --disable-docs \
             --enable-guest-agent --enable-guest-agent-msi \
