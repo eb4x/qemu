@@ -22,9 +22,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # no i386: QEMU dropped 32-bit x86 host support in 11.0 (c1997d85cb);
-        # the last qemu-ga-i386.msi-capable series is stable-10.x
         include:
+          # i386 only builds on refs older than 11.0 — QEMU dropped 32-bit
+          # x86 host support in c1997d85cb; the guard step below skips it
+          # gracefully on newer refs
+          - arch: i386
+            prefix: i686-w64-mingw32-
+            packages: mingw32-gcc mingw32-binutils mingw32-glib2
           - arch: x86_64
             prefix: x86_64-w64-mingw32-
             packages: mingw64-gcc mingw64-binutils mingw64-glib2
@@ -64,7 +68,18 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Check ref supports this arch
+        id: guard
+        run: |
+          if [ "${{ matrix.arch }}" = i386 ] && ! grep -q __i386__ configure; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ inputs.ref }} has no 32-bit x86 host support (QEMU >= 11.0); skipping i386"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build MSI
+        if: steps.guard.outputs.build == 'true'
         run: |
           git config --global --add safe.directory "$PWD"
           if [ -n "${{ matrix.windmc }}" ]; then
@@ -79,11 +94,13 @@ jobs:
           ninja qga/qemu-ga-${{ matrix.arch }}.msi
 
       - name: Verify MSI
+        if: steps.guard.outputs.build == 'true'
         run: |
           msiinfo suminfo build/qga/qemu-ga-${{ matrix.arch }}.msi | grep -i template
           msiinfo export build/qga/qemu-ga-${{ matrix.arch }}.msi File | cut -f1
 
       - name: Upload artifact
+        if: steps.guard.outputs.build == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: qemu-ga-${{ matrix.arch }}-msi
@@ -91,7 +108,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload to release
-        if: inputs.release_tag != ''
+        if: inputs.release_tag != '' && steps.guard.outputs.build == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

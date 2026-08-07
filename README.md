@@ -1,9 +1,10 @@
 # CI branch
 
 This orphan branch holds only the GitHub Actions workflow that cross-builds
-the QEMU guest agent MSI installers (x86_64, aarch64) in a Fedora container.
-There is no i386 build: QEMU dropped 32-bit x86 host support in 11.0
-(commit c1997d85cb); use the stable-10.x series if you need one. It is kept separate so the release branches (`master`,
+the QEMU guest agent MSI installers (i386, x86_64, aarch64) in a Fedora
+container. The i386 job auto-skips on refs newer than the 10.x series:
+QEMU dropped 32-bit x86 host support in 11.0 (commit c1997d85cb), so
+`stable-10.2` is the last branch that produces qemu-ga-i386.msi. It is kept separate so the release branches (`master`,
 `stable-11.0`, `staging-11.0`) stay exactly "upstream + one patch".
 
 Trigger it manually:
