@@ -1,0 +1,90 @@
+name: Build qemu-ga MSI
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or SHA of this repo to build
+        required: true
+        default: master
+      release_tag:
+        description: Existing release tag to upload the MSIs to (empty = artifacts only)
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  msi:
+    runs-on: ubuntu-latest
+    container: fedora:44
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: i386
+            prefix: i686-w64-mingw32-
+            packages: mingw32-gcc mingw32-binutils mingw32-glib2
+          - arch: x86_64
+            prefix: x86_64-w64-mingw32-
+            packages: mingw64-gcc mingw64-binutils mingw64-glib2
+          - arch: aarch64
+            prefix: aarch64-w64-mingw32-
+            copr: ebbex/mingw
+            # clang/lld toolchain; mingw64-binutils supplies the WINDMC
+            # stand-in (GNU-only tool, arch-independent output)
+            packages: >-
+              ucrtarm64-clang ucrtarm64-crt ucrtarm64-headers
+              ucrtarm64-compiler-rt ucrtarm64-winpthreads
+              ucrtarm64-llvm-tools ucrtarm64-glib2 mingw64-binutils
+            windmc: x86_64-w64-mingw32-windmc
+            extra_cflags: -Qunused-arguments
+
+    steps:
+      - name: Install toolchain
+        run: |
+          dnf -y install dnf5-plugins git-core python3 ninja-build make diffutils msitools
+          if [ -n "${{ matrix.copr }}" ]; then
+            dnf -y copr enable ${{ matrix.copr }}
+          fi
+          dnf -y install ${{ matrix.packages }}
+
+      - name: Checkout ${{ inputs.ref }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Build MSI
+        run: |
+          git config --global --add safe.directory "$PWD"
+          mkdir build && cd build
+          WINDMC="${{ matrix.windmc }}" ../configure \
+            --cross-prefix=${{ matrix.prefix }} \
+            --disable-system --disable-user --disable-tools --disable-docs \
+            --enable-guest-agent --enable-guest-agent-msi \
+            ${{ matrix.extra_cflags && format('--extra-cflags={0}', matrix.extra_cflags) || '' }}
+          ninja qga/qemu-ga-${{ matrix.arch }}.msi
+
+      - name: Verify MSI
+        run: |
+          msiinfo suminfo build/qga/qemu-ga-${{ matrix.arch }}.msi | grep -i template
+          msiinfo export build/qga/qemu-ga-${{ matrix.arch }}.msi File | cut -f1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-ga-${{ matrix.arch }}-msi
+          path: build/qga/qemu-ga-${{ matrix.arch }}.msi
+          if-no-files-found: error
+
+      - name: Upload to release
+        if: inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ inputs.release_tag }}'
+          ver="${tag#v}"; ver="${ver%%-qga-*}"
+          cp build/qga/qemu-ga-${{ matrix.arch }}.msi "qemu-ga-${ver}-${{ matrix.arch }}.msi"
+          gh release upload "$tag" "qemu-ga-${ver}-${{ matrix.arch }}.msi" \
+            --repo "$GITHUB_REPOSITORY" --clobber
