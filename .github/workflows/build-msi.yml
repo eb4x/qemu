@@ -22,10 +22,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # no i386: QEMU dropped 32-bit x86 host support in 11.0 (c1997d85cb);
+        # the last qemu-ga-i386.msi-capable series is stable-10.x
         include:
-          - arch: i386
-            prefix: i686-w64-mingw32-
-            packages: mingw32-gcc mingw32-binutils mingw32-glib2
           - arch: x86_64
             prefix: x86_64-w64-mingw32-
             packages: mingw64-gcc mingw64-binutils mingw64-glib2
@@ -43,7 +42,8 @@ jobs:
 
     steps:
       - name: Install base tools
-        run: dnf -y install dnf5-plugins git-core python3 ninja-build make diffutils msitools
+        # gcc: meson requires a native C compiler even for cross builds
+        run: dnf -y install dnf5-plugins git-core gcc python3 ninja-build make diffutils msitools
 
       - name: Enable Copr
         if: matrix.copr
