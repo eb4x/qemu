@@ -2236,6 +2236,9 @@ static char *ga_get_current_arch(void)
     case PROCESSOR_ARCHITECTURE_ARM:
         result = g_strdup("arm");
         break;
+    case PROCESSOR_ARCHITECTURE_ARM64:
+        result = g_strdup("aarch64");
+        break;
     case PROCESSOR_ARCHITECTURE_IA64:
         result = g_strdup("ia64");
         break;

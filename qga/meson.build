@@ -126,7 +126,8 @@ all_qga += qga
 if host_os == 'windows'
   qemu_ga_msi_arch = {
     'x86': ['-D', 'Arch=32'],
-    'x86_64': ['-a', 'x64', '-D', 'Arch=64']
+    'x86_64': ['-a', 'x64', '-D', 'Arch=64'],
+    'aarch64': ['-a', 'arm64', '-D', 'Arch=arm64']
   }
   wixl = not_found
   if cpu in qemu_ga_msi_arch
