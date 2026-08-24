@@ -148,6 +148,18 @@ if host_os == 'windows'
     else
       libpcre = 'libpcre2'
     endif
+    glib_bindir = glib_pc.get_variable('bindir')
+    # The GNU runtime DLLs exist only in GCC toolchain sysroots; a
+    # clang/compiler-rt toolchain has neither.  Bundle each one only when
+    # the toolchain ships it.
+    libgcc_dlls = {'x86': 'libgcc_s_dw2-1.dll', 'x86_64': 'libgcc_s_seh-1.dll'}
+    qemu_ga_msi_gnu_dlls = []
+    if cpu in libgcc_dlls and fs.exists(glib_bindir / libgcc_dlls[cpu])
+      qemu_ga_msi_gnu_dlls += ['-D', 'ArchLib=' + libgcc_dlls[cpu]]
+    endif
+    if fs.exists(glib_bindir / 'libssp-0.dll')
+      qemu_ga_msi_gnu_dlls += ['-D', 'SspLib=libssp-0.dll']
+    endif
     qga_msi_version = get_option('qemu_ga_version') == '' \
       ? meson.project_version() \
       : get_option('qemu_ga_version')
@@ -159,8 +171,9 @@ if host_os == 'windows'
                               wixl, '-o', '@OUTPUT0@', '@INPUT0@',
                               qemu_ga_msi_arch[cpu],
                               qemu_ga_msi_vss,
+                              qemu_ga_msi_gnu_dlls,
                               '-D', 'BUILD_DIR=' + meson.project_build_root(),
-                              '-D', 'BIN_DIR=' + glib_pc.get_variable('bindir'),
+                              '-D', 'BIN_DIR=' + glib_bindir,
                               '-D', 'QEMU_GA_VERSION=' + qga_msi_version,
                               '-D', 'QEMU_GA_MANUFACTURER=' + get_option('qemu_ga_manufacturer'),
                               '-D', 'QEMU_GA_DISTRO=' + get_option('qemu_ga_distro'),
