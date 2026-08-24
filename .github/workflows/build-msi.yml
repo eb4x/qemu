@@ -115,6 +115,7 @@ jobs:
             --cross-prefix=${{ matrix.prefix }} \
             ${{ matrix.cc && format('--cc={0}', matrix.cc) || '' }} \
             --disable-system --disable-user --disable-tools --disable-docs \
+            --disable-plugins \
             --enable-guest-agent --enable-guest-agent-msi \
             ${{ matrix.extra_cflags && format('--extra-cflags={0}', matrix.extra_cflags) || '' }}
           ninja qga/qemu-ga-${{ matrix.arch }}.msi
