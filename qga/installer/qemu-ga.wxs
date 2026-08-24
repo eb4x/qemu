@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <!-- Windows on ARM64 requires Windows Installer 5.0; the x86 targets keep 200 -->
+  <!-- Windows on ARM64 requires Windows Installer 5.0; the x86 targets keep 200.
+       ArchLib and SspLib name the GNU runtime DLLs and arrive from the build
+       system only when the toolchain ships them; a clang/compiler-rt toolchain
+       has neither. -->
   <?if $(var.Arch) = "64"?>
-    <?define ArchLib=libgcc_s_seh-1.dll?>
     <?define GaProgramFilesFolder="ProgramFiles64Folder" ?>
     <?define InstallerVersion="200" ?>
   <?else?>
     <?if $(var.Arch) = "32"?>
-      <?define ArchLib=libgcc_s_dw2-1.dll?>
       <?define GaProgramFilesFolder="ProgramFilesFolder" ?>
       <?define InstallerVersion="200" ?>
     <?else?>
       <?if $(var.Arch) = "arm64"?>
-        <!-- clang/compiler-rt toolchain: no libgcc or libssp DLLs, so no ArchLib -->
         <?define GaProgramFilesFolder="ProgramFiles64Folder" ?>
         <?define InstallerVersion="500" ?>
       <?else?>
@@ -117,9 +117,9 @@
           <Component Id="libintl" Guid="{A641BC2D-A907-4A94-9149-F30ED430878F}">
             <File Id="libintl_8.dll" Name="libintl-8.dll" Source="$(var.BIN_DIR)/libintl-8.dll" KeyPath="yes" DiskId="1"/>
           </Component>
-          <?ifdef var.ArchLib?>
+          <?ifdef var.SspLib?>
           <Component Id="libssp" Guid="{7880087B-02B4-4EF6-A5D3-D18F8E3D90E1}">
-            <File Id="libssp_0.dll" Name="libssp-0.dll" Source="$(var.BIN_DIR)/libssp-0.dll" KeyPath="yes" DiskId="1"/>
+            <File Id="libssp_0.dll" Name="$(var.SspLib)" Source="$(var.BIN_DIR)/$(var.SspLib)" KeyPath="yes" DiskId="1"/>
           </Component>
           <?endif?>
           <Component Id="libwinpthread" Guid="{6C117C78-0F47-4B07-8F34-6BEE11643829}">
@@ -199,7 +199,7 @@
       <?endif?>
       <ComponentRef Id="libglib" />
       <ComponentRef Id="libintl" />
-      <?ifdef var.ArchLib?>
+      <?ifdef var.SspLib?>
       <ComponentRef Id="libssp" />
       <?endif?>
       <ComponentRef Id="libwinpthread" />
