@@ -64,8 +64,9 @@ jobs:
       - name: Install base tools
         # gcc: meson requires a native C compiler even for cross builds.
         # llvm: llvm-windres for the x86 jobs and llvm-objdump for the
-        # import-closure check.
-        run: dnf -y install dnf5-plugins git-core gcc llvm python3 ninja-build make diffutils msitools
+        # import-closure check.  gh: the release upload runs inside this
+        # container, which ships no GitHub CLI of its own.
+        run: dnf -y install dnf5-plugins git-core gcc llvm gh python3 ninja-build make diffutils msitools
 
       - name: Enable Copr
         if: matrix.copr
@@ -141,9 +142,19 @@ jobs:
           find extracted -type f | sort
           system='^(kernel32|msvcrt|ntdll|advapi32|ole32|oleaut32|shell32|user32|userenv|ws2_32|wininet|wtsapi32|setupapi|cfgmgr32|iphlpapi|netapi32|pdh|powrprof|rpcrt4|dnsapi|crypt32|secur32|version|winmm|api-ms-win-.*)\.dll$'
           rc=0
-          for f in $(find extracted -type f \( -name '*.exe' -o -name '*.dll' \)); do
+          checked=0
+          # NUL-delimited: msiextract lays files out under "QEMU Guest
+          # Agent/", and word-splitting on the space made the old loop skip
+          # every file (llvm-objdump failed, imports came out empty, and the
+          # check passed vacuously).
+          while IFS= read -r -d '' f; do
             echo "== $f"
-            imports=$(llvm-objdump -p "$f" | awk '/DLL Name:/ { print $3 }')
+            if ! imports=$(llvm-objdump -p "$f" | awk '/DLL Name:/ { print $3 }'); then
+              echo "::error::llvm-objdump failed on $f"
+              rc=1
+              continue
+            fi
+            checked=$((checked + 1))
             echo "$imports"
             for dep in $imports; do
               lc=$(echo "$dep" | tr 'A-Z' 'a-z')
@@ -157,7 +168,12 @@ jobs:
                 rc=1
               fi
             done
-          done
+          done < <(find extracted -type f \( -name '*.exe' -o -name '*.dll' \) -print0)
+          echo "PE files checked: $checked"
+          if [ "$checked" -lt 2 ]; then
+            echo "::error::the import-closure check examined almost nothing; extraction or matching is broken"
+            rc=1
+          fi
           exit $rc
 
       - name: Upload artifact
