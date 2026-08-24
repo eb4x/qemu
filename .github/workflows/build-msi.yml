@@ -23,15 +23,31 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Every arch builds with clang against the ebbex/mingw Copr stack;
+          # the MSIs bundle no GNU runtime DLLs (no libgcc, no libssp).
+          #
+          # x86: the mingw32/mingw64-clang supplement drivers.  binutils
+          # stays for windmc and ar/windres names, but WINDRES is overridden
+          # with llvm-windres: GNU windres preprocesses .rc files by invoking
+          # <triplet>-gcc, which these clang-only containers do not have.
+          #
           # i386 only builds on refs older than 11.0 — QEMU dropped 32-bit
           # x86 host support in c1997d85cb; the guard step below skips it
-          # gracefully on newer refs
+          # gracefully on newer refs.
           - arch: i386
             prefix: i686-w64-mingw32-
-            packages: mingw32-gcc mingw32-binutils mingw32-glib2
+            copr: ebbex/mingw
+            packages: mingw32-clang mingw32-binutils mingw32-glib2
+            cc: i686-w64-mingw32-clang
+            windres: llvm-windres --target=i686-w64-mingw32
+            extra_cflags: -Qunused-arguments
           - arch: x86_64
             prefix: x86_64-w64-mingw32-
-            packages: mingw64-gcc mingw64-binutils mingw64-glib2
+            copr: ebbex/mingw
+            packages: mingw64-clang mingw64-binutils mingw64-glib2
+            cc: x86_64-w64-mingw32-clang
+            windres: llvm-windres --target=x86_64-w64-mingw32
+            extra_cflags: -Qunused-arguments
           - arch: aarch64
             prefix: aarch64-w64-mingw32-
             copr: ebbex/mingw
@@ -46,8 +62,10 @@ jobs:
 
     steps:
       - name: Install base tools
-        # gcc: meson requires a native C compiler even for cross builds
-        run: dnf -y install dnf5-plugins git-core gcc python3 ninja-build make diffutils msitools
+        # gcc: meson requires a native C compiler even for cross builds.
+        # llvm: llvm-windres for the x86 jobs and llvm-objdump for the
+        # import-closure check.
+        run: dnf -y install dnf5-plugins git-core gcc llvm python3 ninja-build make diffutils msitools
 
       - name: Enable Copr
         if: matrix.copr
@@ -59,8 +77,12 @@ jobs:
       - name: Toolchain sanity
         run: |
           rpm -q ${{ matrix.packages }}
-          command -v ${{ matrix.prefix }}cc || command -v ${{ matrix.prefix }}gcc
-          (${{ matrix.prefix }}gcc --version || ${{ matrix.prefix }}cc --version) | head -1
+          if [ -n "${{ matrix.cc }}" ]; then
+            ${{ matrix.cc }} --version | head -1
+          else
+            command -v ${{ matrix.prefix }}cc || command -v ${{ matrix.prefix }}gcc
+            (${{ matrix.prefix }}gcc --version || ${{ matrix.prefix }}cc --version) | head -1
+          fi
           ${{ matrix.prefix }}pkg-config --modversion glib-2.0
 
       - name: Checkout ${{ inputs.ref }}
@@ -85,9 +107,13 @@ jobs:
           if [ -n "${{ matrix.windmc }}" ]; then
             export WINDMC="${{ matrix.windmc }}"
           fi
+          if [ -n "${{ matrix.windres }}" ]; then
+            export WINDRES="${{ matrix.windres }}"
+          fi
           mkdir build && cd build
           ../configure \
             --cross-prefix=${{ matrix.prefix }} \
+            ${{ matrix.cc && format('--cc={0}', matrix.cc) || '' }} \
             --disable-system --disable-user --disable-tools --disable-docs \
             --enable-guest-agent --enable-guest-agent-msi \
             ${{ matrix.extra_cflags && format('--extra-cflags={0}', matrix.extra_cflags) || '' }}
@@ -95,9 +121,43 @@ jobs:
 
       - name: Verify MSI
         if: steps.guard.outputs.build == 'true'
+        # Three layers: the template names the right machine; no GNU runtime
+        # DLL is bundled; and the import closure holds — every PE in the MSI
+        # imports only DLLs that are either bundled next to it or Windows'
+        # own.  A stale gcc-built DLL sneaking in fails the closure loudly.
         run: |
           msiinfo suminfo build/qga/qemu-ga-${{ matrix.arch }}.msi | grep -i template
           msiinfo export build/qga/qemu-ga-${{ matrix.arch }}.msi File | cut -f1
+
+          files=$(msiinfo export build/qga/qemu-ga-${{ matrix.arch }}.msi File | cut -f1)
+          if echo "$files" | grep -qiE 'libgcc|libssp|libstdc'; then
+            echo "::error::the MSI bundles a GNU runtime DLL"
+            exit 1
+          fi
+
+          mkdir extracted
+          msiextract -C extracted build/qga/qemu-ga-${{ matrix.arch }}.msi
+          find extracted -type f | sort
+          system='^(kernel32|msvcrt|ntdll|advapi32|ole32|oleaut32|shell32|user32|userenv|ws2_32|wininet|wtsapi32|setupapi|cfgmgr32|iphlpapi|netapi32|pdh|powrprof|rpcrt4|dnsapi|crypt32|secur32|version|winmm|api-ms-win-.*)\.dll$'
+          rc=0
+          for f in $(find extracted -type f \( -name '*.exe' -o -name '*.dll' \)); do
+            echo "== $f"
+            imports=$(llvm-objdump -p "$f" | awk '/DLL Name:/ { print $3 }')
+            echo "$imports"
+            for dep in $imports; do
+              lc=$(echo "$dep" | tr 'A-Z' 'a-z')
+              if echo "$lc" | grep -qE 'libgcc|libssp|libstdc'; then
+                echo "::error::$f imports GNU runtime DLL $dep"
+                rc=1
+              elif find extracted -iname "$dep" | grep -q .; then
+                : # bundled next to it
+              elif ! echo "$lc" | grep -qE "$system"; then
+                echo "::error::$f imports $dep, which is neither bundled nor a known system DLL"
+                rc=1
+              fi
+            done
+          done
+          exit $rc
 
       - name: Upload artifact
         if: steps.guard.outputs.build == 'true'
