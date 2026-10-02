@@ -38,7 +38,7 @@ Both forks run it daily from this branch:
   `.github/workflows`, so if upstream changes its `lockdown.yml` that run
   fails and the branch needs a manual push.
 - GitLab ([eb4x/qemu](https://gitlab.com/eb4x/qemu)): `.gitlab-ci.yml`, run
-  by a pipeline schedule on `ci`, syncs `master`. It pushes with the job
+  by a pipeline schedule on `ci`, syncs the same four branches. It pushes with the job
   token (Settings > CI/CD > Job token permissions > "Allow Git push
   requests") and with `-o ci.skip`, so QEMU's own CI does not start.
 
