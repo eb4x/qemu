@@ -21,10 +21,10 @@ its base instead:
 
 | Branch | Diff against upstream |
 |---|---|
-| `qga-arm64/master` | [master...qga-arm64/master](https://github.com/eb4x/qemu/compare/master...qga-arm64/master) |
-| `qga-arm64/stable-11.0` | [stable-11.0...qga-arm64/stable-11.0](https://github.com/eb4x/qemu/compare/stable-11.0...qga-arm64/stable-11.0) |
-| `qga-arm64/staging-11.0` | [staging-11.0...qga-arm64/staging-11.0](https://github.com/eb4x/qemu/compare/staging-11.0...qga-arm64/staging-11.0) |
-| `qga-arm64/stable-10.2` | [stable-10.2...qga-arm64/stable-10.2](https://github.com/eb4x/qemu/compare/stable-10.2...qga-arm64/stable-10.2) |
+| `qga-arm64/master` | [master...qga-arm64/master](../../compare/master...qga-arm64/master) |
+| `qga-arm64/stable-11.0` | [stable-11.0...qga-arm64/stable-11.0](../../compare/stable-11.0...qga-arm64/stable-11.0) |
+| `qga-arm64/staging-11.0` | [staging-11.0...qga-arm64/staging-11.0](../../compare/staging-11.0...qga-arm64/staging-11.0) |
+| `qga-arm64/stable-10.2` | [stable-10.2...qga-arm64/stable-10.2](../../compare/stable-10.2...qga-arm64/stable-10.2) |
 
 ## Mirror sync
 
