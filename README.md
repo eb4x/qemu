@@ -26,6 +26,25 @@ its base instead:
 | `qga-arm64/staging-11.0` | [staging-11.0...qga-arm64/staging-11.0](https://github.com/eb4x/qemu/compare/staging-11.0...qga-arm64/staging-11.0) |
 | `qga-arm64/stable-10.2` | [stable-10.2...qga-arm64/stable-10.2](https://github.com/eb4x/qemu/compare/stable-10.2...qga-arm64/stable-10.2) |
 
+## Mirror sync
+
+`sync-mirrors.sh` force-pushes upstream QEMU's branches over the fork's
+upstream-named branches. Nobody commits to those, so forcing loses nothing
+and also follows upstream when it rewrites a branch (`staging-*` can be).
+Both forks run it daily from this branch:
+
+- GitHub: `.github/workflows/sync-mirrors.yml` (04:23 UTC) syncs all four
+  branches. The workflow token cannot push commits that touch
+  `.github/workflows`, so if upstream changes its `lockdown.yml` that run
+  fails and the branch needs a manual push.
+- GitLab ([eb4x/qemu](https://gitlab.com/eb4x/qemu)): `.gitlab-ci.yml`, run
+  by a pipeline schedule on `ci`, syncs `master`. It pushes with the job
+  token (Settings > CI/CD > Job token permissions > "Allow Git push
+  requests") and with `-o ci.skip`, so QEMU's own CI does not start.
+
+Run it by hand with
+`gh workflow run sync-mirrors.yml --ref ci` or GitLab's "Run pipeline" on `ci`.
+
 ## Building
 
 Trigger the workflow manually:

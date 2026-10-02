@@ -1,0 +1,32 @@
+name: Sync upstream mirrors
+
+# Make this fork's upstream-named branches equal to upstream QEMU.
+# The GitLab fork runs the same script from .gitlab-ci.yml.
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-mirrors
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ci
+        uses: actions/checkout@v4
+
+      - name: Sync
+        # The workflow token cannot push commits that touch .github/workflows;
+        # if upstream ever changes its lockdown.yml, sync that branch by hand.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sh ./sync-mirrors.sh \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            master staging-11.0 stable-11.0 stable-10.2

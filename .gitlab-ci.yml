@@ -1,0 +1,22 @@
+# Make this fork's upstream-named branches equal to upstream QEMU.
+# Runs only from the pipeline schedule on the ci branch (or "Run pipeline");
+# the GitHub fork runs the same script from .github/workflows.
+#
+# Pushing with CI_JOB_TOKEN needs Settings > CI/CD > Job token permissions >
+# "Allow Git push requests to the repository".
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "web"
+
+sync-mirrors:
+  image: alpine:latest
+  variables:
+    # Don't start QEMU's own CI on the branches this pushes.
+    PUSH_OPTS: -o ci.skip
+  script:
+    - apk add --no-cache git
+    - >-
+      sh ./sync-mirrors.sh
+      "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      master
