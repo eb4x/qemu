@@ -51,6 +51,7 @@
     <?endif?>
     <Property Id="ARPNOMODIFY" Value="yes" Secure="yes" />
     <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
       DowngradeErrorMessage="Error: A newer version of QEMU guest agent is already installed."
       />
 
