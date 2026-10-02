@@ -4,18 +4,42 @@ This orphan branch holds only the GitHub Actions workflow that cross-builds
 the QEMU guest agent MSI installers (i386, x86_64, aarch64) in a Fedora
 container. The i386 job auto-skips on refs newer than the 10.x series:
 QEMU dropped 32-bit x86 host support in 11.0 (commit c1997d85cb), so
-`stable-10.2` is the last branch that produces qemu-ga-i386.msi. It is kept separate so the release branches (`master`,
-`stable-11.0`, `staging-11.0`) stay exactly "upstream + one patch".
+`qga-arm64/stable-10.2` is the last branch that produces qemu-ga-i386.msi.
 
-Trigger it manually:
+## Branches
+
+`master`, `stable-11.0`, `staging-11.0` and `stable-10.2` are unmodified
+mirrors of the upstream QEMU branches. The patched code lives on
+`qga-arm64/<base>`: the Windows-on-ARM64 `qemu-ga` patches on top of
+`<base>`, plus, on the 10.2 and 11.0 branches, a cherry-pick of upstream
+c3399b2868 (VssOption registry fix) that `master` already contains.
+
+This branch is the repository's default because GitHub only dispatches
+workflows that exist on the default branch, so GitHub's ahead/behind
+banner compares every branch against `ci`. Compare each patch branch with
+its base instead:
+
+| Branch | Diff against upstream |
+|---|---|
+| `qga-arm64/master` | [master...qga-arm64/master](https://github.com/eb4x/qemu/compare/master...qga-arm64/master) |
+| `qga-arm64/stable-11.0` | [stable-11.0...qga-arm64/stable-11.0](https://github.com/eb4x/qemu/compare/stable-11.0...qga-arm64/stable-11.0) |
+| `qga-arm64/staging-11.0` | [staging-11.0...qga-arm64/staging-11.0](https://github.com/eb4x/qemu/compare/staging-11.0...qga-arm64/staging-11.0) |
+| `qga-arm64/stable-10.2` | [stable-10.2...qga-arm64/stable-10.2](https://github.com/eb4x/qemu/compare/stable-10.2...qga-arm64/stable-10.2) |
+
+## Building
+
+Trigger the workflow manually:
 
 ```sh
 gh workflow run build-msi.yml --ref ci \
-    -f ref=master \
+    -f ref=qga-arm64/master \
     -f release_tag=v11.1.0-rc3-qga-arm64.1   # optional: attach MSIs to a release
 ```
 
-`ref` is the branch/tag/SHA of this repository to build. Without
+`ref` is the branch/tag/SHA of this repository to build. Use a
+`qga-arm64/*` branch: the plain mirrors lack the patches this clang-only
+toolchain needs (upstream's installer expects libgcc/libssp DLLs and has no
+arm64 target). Without
 `release_tag` the MSIs are only uploaded as workflow artifacts.
 
 The aarch64 job uses the clang/lld `ucrtarm64-*` toolchain from the
@@ -34,6 +58,7 @@ Keep them consistent:
 - **Tag**: `v<version>-qga-arm64.<n>`, kept as-is for URL stability despite the
   arm64 in the name.
 - **Body**: asset table with one row per MSI, `x86_64` first; state that the
-  only delta from upstream is the Windows-on-ARM64 `qemu-ga` patch; close with
+  only delta from upstream is the `qga-arm64/<base>` patch set, linking its
+  compare page from the table above; close with
   the `msiexec` snippet and the `SHA256SUMS` line.
 - Mark RC builds `--prerelease` and open the body with `**Pre-release.**`.
